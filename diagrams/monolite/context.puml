@@ -1,0 +1,20 @@
+@startuml
+title Диаграмма контекста умного дома WarmHouse
+
+top to bottom direction
+
+!includeurl https://raw.githubusercontent.com/RicardoNiepel/C4-PlantUML/master/C4_Component.puml
+
+Person(user, "User", "Пользователь который использует систему")
+System(WarmHouse, "WarmHouse", "Система управления отоплением")
+
+System_Ext(DataBase, "База данных\nPostgres", "Хранит информацию и конфигурацию")
+System_Ext(IOT, "IoT - девайсы", "Получение инормации о температуре")
+Rel(user, WarmHouse, "HTTP API (Sync,JSON) \n [Запрашивает информацию]")
+Rel(WarmHouse,DataBase,"SQL")
+Rel(WarmHouse,IOT,"HTTP")
+
+
+
+
+@enduml
