@@ -14,7 +14,4 @@ Rel(user, WarmHouse, "HTTP API (Sync,JSON) \n [Запрашивает инфор
 Rel(WarmHouse,DataBase,"SQL")
 Rel(WarmHouse,IOT,"HTTP")
 
-
-
-
 @enduml
