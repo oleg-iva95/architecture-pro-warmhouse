@@ -131,6 +131,10 @@
 
 Добавьте сюда ER-диаграмму. Она должна отражать ключевые сущности системы, их атрибуты и тип связей между ними.
 
+![](diagrams/er/logical_data_model.png)
+
+Исходник диаграммы: [diagrams/er/logical_data_model.puml](diagrams/er/logical_data_model.puml)
+
 # Задание 4. Создание и документирование API
 
 ### 1. Тип API
