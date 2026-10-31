@@ -83,15 +83,49 @@
 
 **Диаграмма контейнеров (Containers)**
 
-Добавьте диаграмму.
+![Диграмма контейнера](diagrams/decomposition/containers_to_be.png)
+
+Исходник диаграммы: [diagrams/decomposition/containers_to_be.puml](diagrams/decomposition/containers_to_be.puml)
 
 **Диаграмма компонентов (Components)**
 
-Добавьте диаграмму для каждого из выделенных микросервисов.
+![](diagrams/decomposition/components_auth_service.png)
+
+Исходник диаграммы: [diagrams/decomposition/components_auth_service.puml](diagrams/decomposition/components_auth_service.puml)
+
+![](diagrams/decomposition/components_access_control_service.png)
+
+Исходник диаграммы: [diagrams/decomposition/components_access_control_service.puml](diagrams/decomposition/components_access_control_service.puml)
+
+![](diagrams/decomposition/components_climate_service.png)
+
+Исходник диаграммы: [diagrams/decomposition/components_climate_service.puml](diagrams/decomposition/components_climate_service.puml)
+
+![](diagrams/decomposition/components_device_registry_service.png)
+
+Исходник диаграммы: [diagrams/decomposition/components_device_registry_service.puml](diagrams/decomposition/components_device_registry_service.puml)
+
+![](diagrams/decomposition/components_gate_service.png)
+
+Исходник диаграммы: [diagrams/decomposition/components_gate_service.puml](diagrams/decomposition/components_gate_service.puml)
+
+![](diagrams/decomposition/components_lighting_service.png)
+
+Исходник диаграммы: [diagrams/decomposition/components_lighting_service.puml](diagrams/decomposition/components_lighting_service.puml)
+
+![](diagrams/decomposition/components_video_archive_service.png)
+
+Исходник диаграммы: [diagrams/decomposition/components_video_archive_service.puml](diagrams/decomposition/components_video_archive_service.puml)
+
+![](diagrams/decomposition/components_video_streaming_service.png)
+
+Исходник диаграммы: [diagrams/decomposition/components_video_streaming_service.puml](diagrams/decomposition/components_video_streaming_service.puml)
 
 **Диаграмма кода (Code)**
 
-Добавьте одну диаграмму или несколько.
+![](diagrams/decomposition/code_access_control_class.png)
+
+Исходник диаграммы: [diagrams/decomposition/code_access_control_class.puml](diagrams/decomposition/code_access_control_class.puml)
 
 # Задание 3. Разработка ER-диаграммы
 
