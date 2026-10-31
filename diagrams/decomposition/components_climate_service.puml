@@ -1,0 +1,44 @@
+@startuml
+title Умный Дом - Диаграмма компонентов C4: Climate Service
+
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_TOP_DOWN()
+LAYOUT_WITH_LEGEND()
+
+Container(gateway, "API Gateway", "Nginx / Kong", "Единая точка входа")
+Container(access_svc, "Access Control Service", "Go / REST", "Проверка прав доступа")
+ContainerQueue(broker, "Message Broker", "Kafka / RabbitMQ", "Команды устройствам и телеметрия")
+ContainerDb(climate_db, "Climate DB", "PostgreSQL", "Состояние термостатов, история показаний")
+
+Container_Boundary(climate_svc, "Climate Service") {
+    Component(api, "API Component", "REST controller", "Принимает HTTP-запросы: команды вкл/выкл, запрос показаний")
+    Component(cmd_handler, "Command Handler", "Application service", "Валидирует и обрабатывает команды управления отоплением")
+    Component(temp_monitor, "Temperature Monitor", "Application service", "Агрегирует показания температуры из разных мест/термостатов")
+    Component(state_manager, "Device State Manager", "Domain service", "Хранит и обновляет состояние термостатов (агрегат)")
+    Component(access_client, "Access Check Client", "REST client", "Обращается к Access Control Service для проверки прав")
+    Component(event_publisher, "Event Publisher", "Broker producer", "Публикует команды устройствам в брокер")
+    Component(event_consumer, "Telemetry Consumer", "Broker consumer", "Подписан на телеметрию температуры от датчиков")
+    Component(repository, "Climate Repository", "Data access", "CRUD поверх Climate DB")
+}
+
+Rel(gateway, api, "Команды и запрос показаний", "REST, sync")
+
+Rel(api, cmd_handler, "Передаёт команду", "вызов в процессе")
+Rel(api, temp_monitor, "Запрашивает текущие показания", "вызов в процессе")
+
+Rel(cmd_handler, access_client, "Проверяет права перед выполнением", "вызов в процессе")
+Rel(access_client, access_svc, "Проверяет права на действие с устройством", "REST, sync")
+
+Rel(cmd_handler, state_manager, "Обновляет состояние термостата", "вызов в процессе")
+Rel(cmd_handler, event_publisher, "Публикует команду на устройство", "вызов в процессе")
+Rel(event_publisher, broker, "Отправляет команду", "async, pub/sub")
+
+Rel(event_consumer, broker, "Получает телеметрию от датчиков", "async, pub/sub")
+Rel(event_consumer, state_manager, "Обновляет показания", "вызов в процессе")
+
+Rel(state_manager, repository, "Читает/пишет состояние", "вызов в процессе")
+Rel(temp_monitor, repository, "Читает историю показаний", "вызов в процессе")
+Rel(repository, climate_db, "SQL-запросы", "SQL")
+
+@enduml

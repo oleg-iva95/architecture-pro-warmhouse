@@ -1,0 +1,36 @@
+@startuml
+title Умный Дом - Диаграмма компонентов C4: Access Control Service
+
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_TOP_DOWN()
+LAYOUT_WITH_LEGEND()
+
+Container(registry_svc, "Device Registry Service", "Go / REST", "Реестр устройств, владелец устройства")
+Container(climate_svc, "Climate Service", "Go / REST", "и другие доменные сервисы (Lighting, Gate, Video...)")
+ContainerDb(access_db, "Access DB", "PostgreSQL", "Роли, права, привязка пользователь-устройство")
+
+Container_Boundary(access_svc, "Access Control Service") {
+    Component(api, "API Component", "REST controller", "Принимает запросы на проверку прав от доменных сервисов")
+    Component(permission_checker, "Permission Checker", "Domain service", "Бизнес-логика: решает, разрешено ли действие")
+    Component(role_resolver, "Role Resolver", "Application service", "Определяет роли и права пользователя для конкретного дома/устройства")
+    Component(ownership_client, "Ownership Check Client", "REST client", "Запрашивает владельца устройства при необходимости")
+    Component(permission_cache, "Permission Cache", "In-memory cache", "Кэширует часто проверяемые права, снижает нагрузку на БД")
+    Component(repository, "Access Repository", "Data access", "CRUD поверх Access DB: роли, права, привязки")
+}
+
+Rel(climate_svc, api, "Проверяет права на действие с устройством", "REST, sync")
+
+Rel(api, permission_checker, "Передаёт запрос на проверку", "вызов в процессе")
+Rel(permission_checker, permission_cache, "Сначала проверяет кэш", "вызов в процессе")
+Rel(permission_checker, role_resolver, "Запрашивает роли/права пользователя", "вызов в процессе")
+Rel(permission_checker, ownership_client, "Уточняет владельца устройства (если нужно)", "вызов в процессе")
+
+Rel(ownership_client, registry_svc, "Получает владельца устройства", "REST, sync")
+
+Rel(role_resolver, repository, "Читает роли и привязки", "вызов в процессе")
+Rel(repository, access_db, "SQL-запросы", "SQL")
+
+Rel(permission_checker, permission_cache, "Обновляет кэш результатом проверки", "вызов в процессе")
+
+@enduml

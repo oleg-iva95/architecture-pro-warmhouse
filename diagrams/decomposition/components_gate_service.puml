@@ -1,0 +1,45 @@
+@startuml
+title Умный Дом - Диаграмма компонентов C4: Gate Service
+
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_TOP_DOWN()
+LAYOUT_WITH_LEGEND()
+
+Container(gateway, "API Gateway", "Nginx / Kong", "Единая точка входа")
+Container(access_svc, "Access Control Service", "Go / REST", "Проверка прав доступа")
+ContainerQueue(broker, "Message Broker", "Kafka / RabbitMQ", "Команды устройствам и события привода")
+ContainerDb(gate_db, "Gate DB", "PostgreSQL", "Состояние и журнал событий привода ворот")
+
+Container_Boundary(gate_svc, "Gate Service") {
+    Component(api, "API Component", "REST controller", "Принимает команды открытия/закрытия ворот")
+    Component(cmd_handler, "Command Handler", "Application service", "Валидирует и обрабатывает команды управления воротами")
+    Component(state_manager, "Gate State Manager", "Domain service", "Хранит состояние привода: открыто/закрыто/в движении")
+    Component(access_client, "Access Check Client", "REST client", "Проверяет права перед выполнением команды")
+    Component(event_publisher, "Event Publisher", "Broker producer", "Публикует команду приводу ворот в брокер")
+    Component(event_consumer, "Gate Status Consumer", "Broker consumer", "Подписан на подтверждение статуса привода от датчика")
+    Component(audit_logger, "Audit Log Writer", "Domain service", "Ведёт журнал событий открытия/закрытия (для безопасности)")
+    Component(repository, "Gate Repository", "Data access", "CRUD поверх Gate DB")
+}
+
+Rel(gateway, api, "Команды воротам", "REST, sync")
+
+Rel(api, cmd_handler, "Передаёт команду", "вызов в процессе")
+
+Rel(cmd_handler, access_client, "Проверяет права перед выполнением", "вызов в процессе")
+Rel(access_client, access_svc, "Проверяет права на действие с устройством", "REST, sync")
+
+Rel(cmd_handler, state_manager, "Запрашивает смену состояния", "вызов в процессе")
+Rel(cmd_handler, event_publisher, "Публикует команду приводу", "вызов в процессе")
+Rel(cmd_handler, audit_logger, "Фиксирует событие команды", "вызов в процессе")
+Rel(event_publisher, broker, "Отправляет команду", "async, pub/sub")
+
+Rel(event_consumer, broker, "Получает подтверждение статуса", "async, pub/sub")
+Rel(event_consumer, state_manager, "Обновляет фактическое состояние", "вызов в процессе")
+Rel(event_consumer, audit_logger, "Фиксирует фактическое событие", "вызов в процессе")
+
+Rel(state_manager, repository, "Читает/пишет состояние", "вызов в процессе")
+Rel(audit_logger, repository, "Пишет журнал событий", "вызов в процессе")
+Rel(repository, gate_db, "SQL-запросы", "SQL")
+
+@enduml
