@@ -1,0 +1,16 @@
+{
+    "name": "smarthome/device-service",
+    "description": "Примитивный сервис управления устройствами (Device Registry Service)",
+    "type": "project",
+    "require": {
+        "php": ">=8.2",
+        "symfony/http-foundation": "^7.1",
+        "symfony/routing": "^7.1"
+    },
+    "autoload": {
+        "classmap": ["src/"]
+    },
+    "config": {
+        "optimize-autoloader": true
+    }
+}

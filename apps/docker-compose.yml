@@ -19,6 +19,26 @@ services:
     networks:
       - smarthome-network
 
+  devices-postgres:
+    image: postgres:16-alpine
+    container_name: smarthome-devices-postgres
+    environment:
+      - POSTGRES_USER=devices
+      - POSTGRES_PASSWORD=devices
+      - POSTGRES_DB=devices
+    volumes:
+      - devices_postgres_data:/var/lib/postgresql/data
+      - ./device-service/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U devices"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - smarthome-network
+
   temperature-api:
     build:
       context: ./temperature-api
@@ -26,6 +46,28 @@ services:
     container_name: smarthome-temperature-api
     ports:
       - "8081:8081"
+    networks:
+      - smarthome-network
+
+  device-service:
+    build:
+      context: ./device-service
+      dockerfile: Dockerfile
+    container_name: smarthome-device-service
+    environment:
+      - MONOLITH_URL=http://app:8080
+      - DEVICE_DB_HOST=devices-postgres
+      - DEVICE_DB_PORT=5432
+      - DEVICE_DB_NAME=devices
+      - DEVICE_DB_USER=devices
+      - DEVICE_DB_PASSWORD=devices
+    ports:
+      - "8082:8082"
+    depends_on:
+      devices-postgres:
+        condition: service_healthy
+      app:
+        condition: service_started
     networks:
       - smarthome-network
 
@@ -50,6 +92,7 @@ services:
 
 volumes:
   postgres_data:
+  devices_postgres_data:
 
 networks:
   smarthome-network:
