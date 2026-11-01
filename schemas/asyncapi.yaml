@@ -1,0 +1,85 @@
+asyncapi: 3.0.0
+info:
+  title: Умный Дом - события отопления
+  version: 1.0.0
+  description: Сервис климат-контроля шлёт команды устройствам и слушает показания температуры.
+
+servers:
+  kafka:
+    host: localhost:9092
+    protocol: kafka
+
+channels:
+  heatingCommands:
+    address: climate.heating.commands
+    messages:
+      heatingCommand:
+        payload:
+          type: object
+          required: [deviceId, action]
+          properties:
+            deviceId:
+              type: string
+              format: uuid
+            action:
+              type: string
+              enum: [TurnOn, TurnOff]
+            targetTemperature:
+              type: number
+              description: "Соответствует ClimateState.target_temperature"
+        examples:
+          - payload:
+              deviceId: "7c4a3d10-2222-4b1a-9c3d-000000000002"
+              action: TurnOn
+              targetTemperature: 22.5
+
+  temperatureReadings:
+    address: telemetry.readings
+    messages:
+      newReading:
+        payload:
+          type: object
+          required: [id, deviceId, metricType, value, recordedAt]
+          properties:
+            id:
+              type: string
+              format: uuid
+              description: "Соответствует TelemetryData.id"
+            deviceId:
+              type: string
+              format: uuid
+              description: "Соответствует TelemetryData.device_id"
+            metricType:
+              type: string
+              description: "Соответствует TelemetryData.metric_type, например temperature"
+            value:
+              type: number
+            unit:
+              type: string
+              example: C
+            recordedAt:
+              type: string
+              format: date-time
+        examples:
+          - payload:
+              id: "2e5b7c9d-1f3a-4b4c-8d8e-3a5c7e9a1b42"
+              deviceId: "7c4a3d10-2222-4b1a-9c3d-000000000002"
+              metricType: temperature
+              value: 21.8
+              unit: C
+              recordedAt: "2026-11-01T09:15:00Z"
+
+operations:
+  publishHeatingCommand:
+    action: send
+    channel:
+      $ref: '#/channels/heatingCommands'
+    messages:
+      - $ref: '#/channels/heatingCommands/messages/heatingCommand'
+
+  consumeTemperatureReading:
+    action: receive
+    channel:
+      $ref: '#/channels/temperatureReadings'
+    messages:
+      - $ref: '#/channels/temperatureReadings/messages/newReading'
