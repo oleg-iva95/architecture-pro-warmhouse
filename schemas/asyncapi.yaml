@@ -1,40 +1,24 @@
 asyncapi: 3.0.0
 info:
-  title: Умный Дом - события отопления
+  title: Умный Дом - события телеметрии
   version: 1.0.0
-  description: Сервис климат-контроля шлёт команды устройствам и слушает показания температуры.
+  description: >
+    temperature-api публикует показания датчиков в RabbitMQ, а
+    telemetry-consumer читает их и сохраняет в БД telemetry-service.
 
 servers:
-  kafka:
-    host: localhost:9092
-    protocol: kafka
+  rabbitmq:
+    host: localhost:5672
+    protocol: amqp
+    description: RabbitMQ (локально, порт опубликован в docker-compose)
+  rabbitmqManagementUi:
+    host: localhost:15672
+    protocol: http
+    description: RabbitMQ Management UI (guest/guest) — посмотреть очередь devices.telemetry.temperature глазами
 
 channels:
-  heatingCommands:
-    address: climate.heating.commands
-    messages:
-      heatingCommand:
-        payload:
-          type: object
-          required: [deviceId, action]
-          properties:
-            deviceId:
-              type: string
-              format: uuid
-            action:
-              type: string
-              enum: [TurnOn, TurnOff]
-            targetTemperature:
-              type: number
-              description: "Соответствует ClimateState.target_temperature"
-        examples:
-          - payload:
-              deviceId: "7c4a3d10-2222-4b1a-9c3d-000000000002"
-              action: TurnOn
-              targetTemperature: 22.5
-
   temperatureReadings:
-    address: telemetry.readings
+    address: devices.telemetry.temperature
     messages:
       newReading:
         payload:
@@ -48,10 +32,10 @@ channels:
             deviceId:
               type: string
               format: uuid
-              description: "Соответствует TelemetryData.device_id"
+              description: "Соответствует TelemetryData.device_id (UUID, полученный из legacy sensor_id через uuid5)"
             metricType:
               type: string
-              description: "Соответствует TelemetryData.metric_type, например temperature"
+              description: "Соответствует TelemetryData.metric_type"
             value:
               type: number
             unit:
@@ -70,15 +54,17 @@ channels:
               recordedAt: "2026-11-01T09:15:00Z"
 
 operations:
-  publishHeatingCommand:
+  publishTemperatureReading:
     action: send
+    summary: "temperature-api публикует показание при каждом запросе /temperature"
     channel:
-      $ref: '#/channels/heatingCommands'
+      $ref: '#/channels/temperatureReadings'
     messages:
-      - $ref: '#/channels/heatingCommands/messages/heatingCommand'
+      - $ref: '#/channels/temperatureReadings/messages/newReading'
 
   consumeTemperatureReading:
     action: receive
+    summary: "telemetry-consumer читает очередь и сохраняет показание в БД"
     channel:
       $ref: '#/channels/temperatureReadings'
     messages:
