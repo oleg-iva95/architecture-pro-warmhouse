@@ -1,0 +1,118 @@
+@startuml
+title Умный Дом - Диаграмма кода C4: Access Control Service (диаграмма классов)
+
+skinparam classAttributeIconSize 0
+
+interface PermissionChecker {
+  +CheckPermission(userID, deviceID, action Action) (Decision, error)
+}
+
+class PermissionCheckerImpl {
+  -roleResolver RoleResolver
+  -ownershipClient OwnershipClient
+  -cache PermissionCache
+  +CheckPermission(userID, deviceID, action Action) (Decision, error)
+}
+
+interface RoleResolver {
+  +ResolveRoles(userID, houseID string) ([]Role, error)
+}
+
+class RoleResolverImpl {
+  -repo AccessRepository
+  +ResolveRoles(userID, houseID string) ([]Role, error)
+}
+
+interface OwnershipClient {
+  +GetOwner(deviceID string) (string, error)
+}
+
+class OwnershipClientHTTP {
+  -registryBaseURL string
+  -httpClient HTTPClient
+  -timeout time.Duration
+  +GetOwner(deviceID string) (string, error)
+}
+
+interface PermissionCache {
+  +Get(key string) (Decision, bool)
+  +Set(key string, d Decision, ttl time.Duration)
+  +Invalidate(key string)
+}
+
+class InMemoryPermissionCache {
+  -store map[string]cacheEntry
+  -mu sync.RWMutex
+  +Get(key string) (Decision, bool)
+  +Set(key string, d Decision, ttl time.Duration)
+  +Invalidate(key string)
+}
+
+class AccessRepository {
+  -db *pgxpool.Pool
+  +GetRoles(userID, houseID string) ([]Role, error)
+  +GetPermissions(roleID string) ([]Permission, error)
+}
+
+class Role {
+  +ID string
+  +Name string
+  +Permissions []Permission
+}
+
+class Permission {
+  +Action Action
+  +ResourceType string
+}
+
+enum Action {
+  TurnOn
+  TurnOff
+  Open
+  Close
+  View
+  Edit
+  Delete
+  ViewArchive
+}
+
+class Decision {
+  +Allowed bool
+  +Reason string
+  +ExpiresAt time.Time
+}
+
+class AccessDeniedError {
+  +UserID string
+  +DeviceID string
+  +Action Action
+  +Error() string
+}
+
+PermissionCheckerImpl ..|> PermissionChecker
+RoleResolverImpl ..|> RoleResolver
+OwnershipClientHTTP ..|> OwnershipClient
+InMemoryPermissionCache ..|> PermissionCache
+
+PermissionCheckerImpl --> RoleResolver
+PermissionCheckerImpl --> OwnershipClient
+PermissionCheckerImpl --> PermissionCache
+PermissionCheckerImpl ..> Decision : создаёт
+PermissionCheckerImpl ..> AccessDeniedError : при отказе
+
+RoleResolverImpl --> AccessRepository
+RoleResolverImpl ..> Role
+
+AccessRepository ..> Role
+AccessRepository ..> Permission
+
+Role "1" o-- "*" Permission
+
+note right of PermissionCheckerImpl
+  Fail-closed: при недоступности
+  OwnershipClient или ошибке БД
+  возвращается Decision{Allowed:false},
+  а не "пропустить по умолчанию"
+end note
+
+@enduml

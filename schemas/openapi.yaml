@@ -1,0 +1,262 @@
+openapi: 3.0.3
+info:
+  title: Умный Дом - REST API
+  version: 1.0.0
+  description: >
+    Синхронные REST-эндпоинты сервиса устройств (device-service) и сервиса.
+servers:
+  - url: http://localhost:8082
+    description: device-service (локально, docker-compose)
+
+paths:
+
+  /api/v1/devices:
+    servers:
+      - url: http://localhost:8082
+        description: device-service
+    get:
+      summary: Получить список устройств (свои + не перенесённые из монолита)
+      responses:
+        '200':
+          description: Список устройств
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Device'
+              examples:
+                example:
+                  value:
+                    - id: "7c4a3d10-2222-4b1a-9c3d-000000000002"
+                      typeId: thermostat
+                      houseId: "3a2b1c00-aaaa-4b1a-9c3d-000000000010"
+                      serialNumber: "TH-2026-00142"
+                      name: "Термостат, гостиная"
+                      location: "Гостиная"
+                      status: active
+                      createdAt: "2026-11-01T09:00:00Z"
+                      source: device-service
+                    - id: "1"
+                      typeId: null
+                      houseId: null
+                      serialNumber: null
+                      name: "Sensor 1"
+                      location: "Living Room"
+                      status: active
+                      createdAt: null
+                      source: "monolith (legacy)"
+        '500':
+          description: Внутренняя ошибка сервиса
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      summary: Зарегистрировать новое устройство
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [typeId, serialNumber]
+              properties:
+                typeId:
+                  type: string
+                  description: "thermostat, light, gate, camera"
+                houseId:
+                  type: string
+                  format: uuid
+                serialNumber:
+                  type: string
+                name:
+                  type: string
+                location:
+                  type: string
+            examples:
+              example:
+                value:
+                  typeId: thermostat
+                  houseId: "3a2b1c00-aaaa-4b1a-9c3d-000000000010"
+                  serialNumber: "TH-2026-00142"
+                  name: "Термостат, гостиная"
+                  location: "Гостиная"
+      responses:
+        '201':
+          description: Устройство создано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Device'
+              examples:
+                example:
+                  value:
+                    id: "7c4a3d10-2222-4b1a-9c3d-000000000002"
+                    typeId: thermostat
+                    houseId: "3a2b1c00-aaaa-4b1a-9c3d-000000000010"
+                    serialNumber: "TH-2026-00142"
+                    name: "Термостат, гостиная"
+                    location: "Гостиная"
+                    status: inactive
+                    createdAt: "2026-11-01T09:00:00Z"
+        '400':
+          description: Не хватает обязательных полей
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                example:
+                  value:
+                    code: INVALID_REQUEST
+                    message: "Поле serialNumber обязательно"
+        '409':
+          description: Устройство с таким serialNumber уже зарегистрировано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                example:
+                  value:
+                    code: ALREADY_EXISTS
+                    message: "Устройство с таким serialNumber уже зарегистрировано"
+
+  /api/v1/devices/{id}:
+    servers:
+      - url: http://localhost:8082
+        description: device-service
+    get:
+      summary: Получить устройство по id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Устройство найдено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Device'
+        '404':
+          description: Устройство не найдено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                example:
+                  value:
+                    code: NOT_FOUND
+                    message: "Устройство не найдено"
+
+    patch:
+      summary: Редактировать устройство
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              description: "Любое подмножество редактируемых полей"
+              properties:
+                typeId:
+                  type: string
+                houseId:
+                  type: string
+                  format: uuid
+                serialNumber:
+                  type: string
+                name:
+                  type: string
+                location:
+                  type: string
+                status:
+                  type: string
+                  enum: [active, inactive]
+            examples:
+              example:
+                value:
+                  name: "Термостат, спальня"
+                  status: active
+      responses:
+        '200':
+          description: Устройство обновлено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Device'
+        '404':
+          description: Устройство не найдено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '400':
+          description: Нет полей для обновления
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                example:
+                  value:
+                    code: INVALID_REQUEST
+                    message: "Не передано ни одного редактируемого поля"
+
+ 
+components:
+  schemas:
+    Device:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        typeId:
+          type: string
+          nullable: true
+        houseId:
+          type: string
+          format: uuid
+          nullable: true
+        serialNumber:
+          type: string
+          nullable: true
+        name:
+          type: string
+          nullable: true
+        location:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [active, inactive]
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        source:
+          type: string
+          enum: [device-service, "monolith (legacy)"]
+          description: "Откуда реально пришла запись (миграция Strangler Fig)"
+
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string

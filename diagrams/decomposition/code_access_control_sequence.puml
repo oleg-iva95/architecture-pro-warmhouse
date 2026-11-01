@@ -1,0 +1,79 @@
+@startuml
+title Умный Дом - Диаграмма кода C4: Проверка прав доступа (диаграмма последовательности)
+
+skinparam sequenceMessageAlign center
+
+participant "Доменный сервис\n(напр. Climate Service)" as Caller
+participant "Access Control\nAPI" as API
+participant "PermissionChecker" as Checker
+participant "PermissionCache" as Cache
+participant "RoleResolver" as RoleRes
+participant "AccessRepository" as Repo
+database "Access DB" as DB
+participant "OwnershipClient" as Owner
+participant "Device Registry\nService" as Registry
+
+Caller -> API: POST /check\n{userID, deviceID, action}
+activate API
+API -> Checker: CheckPermission(userID, deviceID, action)
+activate Checker
+
+Checker -> Cache: Get(cacheKey)
+activate Cache
+Cache --> Checker: miss
+deactivate Cache
+
+Checker -> Owner: GetOwner(deviceID)
+activate Owner
+Owner -> Registry: GET /devices/{id}/owner
+activate Registry
+Registry --> Owner: ownerID
+
+alt Device Registry недоступен
+  Registry --> Owner: timeout / error
+  Owner --> Checker: error
+  Checker --> API: Decision{Allowed:false, Reason:"fail-closed: ownership unresolved"}
+  note right of Checker
+    Fail-closed: при ошибке
+    не разрешаем действие
+  end note
+else Владелец получен
+  deactivate Registry
+  Owner --> Checker: ownerID
+  deactivate Owner
+
+  Checker -> RoleRes: ResolveRoles(userID, houseID)
+  activate RoleRes
+  RoleRes -> Repo: GetRoles(userID, houseID)
+  activate Repo
+  Repo -> DB: SELECT roles ...
+  DB --> Repo: rows
+  Repo --> RoleRes: []Role
+  deactivate Repo
+  RoleRes --> Checker: []Role
+  deactivate RoleRes
+
+  Checker -> Checker: evaluate(roles, ownerID, action)
+
+  alt Действие разрешено
+    Checker -> Cache: Set(cacheKey, Decision{Allowed:true}, ttl)
+    Checker --> API: Decision{Allowed:true}
+  else Действие запрещено
+    Checker -> Cache: Set(cacheKey, Decision{Allowed:false}, ttl)
+    Checker --> API: Decision{Allowed:false, Reason:"insufficient permissions"}
+    note right of Checker
+      Отказ логируется отдельно
+      (аудит безопасности)
+    end note
+  end
+end
+
+deactivate Checker
+API --> Caller: 200 OK {allowed, reason}
+deactivate API
+
+alt allowed == false
+  Caller --> Caller: прерывает выполнение команды,\nвозвращает 403 клиенту
+end
+
+@enduml

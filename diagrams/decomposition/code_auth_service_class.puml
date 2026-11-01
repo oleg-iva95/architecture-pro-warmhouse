@@ -1,0 +1,112 @@
+@startuml
+title Умный Дом - Диаграмма кода C4: Auth Service (диаграмма классов)
+
+skinparam classAttributeIconSize 0
+
+class AuthenticationHandler {
+  -hasher PasswordHasher
+  -repo UserRepository
+  -tokenIssuer TokenIssuer
+  +Login(credentials Credentials) (TokenPair, error)
+}
+
+class RegistrationHandler {
+  -hasher PasswordHasher
+  -repo UserRepository
+  +Register(input RegisterInput) (User, error)
+}
+
+interface PasswordHasher {
+  +Hash(password string) (string, error)
+  +Verify(password, hash string) bool
+}
+
+class BcryptPasswordHasher {
+  -cost int
+  +Hash(password string) (string, error)
+  +Verify(password, hash string) bool
+}
+
+interface TokenIssuer {
+  +IssueAccessToken(userID string, roles []string) (string, error)
+  +IssueRefreshToken(userID string) (string, error)
+  +ValidateToken(token string) (Claims, error)
+}
+
+class JWTTokenIssuer {
+  -signingKey []byte
+  -algorithm string
+  -accessTTL time.Duration
+  -refreshTTL time.Duration
+  +IssueAccessToken(userID string, roles []string) (string, error)
+  +IssueRefreshToken(userID string) (string, error)
+  +ValidateToken(token string) (Claims, error)
+}
+
+class UserRepository {
+  -db *pgxpool.Pool
+  +FindByLogin(login string) (User, error)
+  +Create(user User) error
+}
+
+class User {
+  +ID string
+  +Login string
+  +PasswordHash string
+  +CreatedAt time.Time
+}
+
+class Credentials {
+  +Login string
+  +Password string
+}
+
+class RegisterInput {
+  +Login string
+  +Password string
+}
+
+class Claims {
+  +UserID string
+  +Roles []string
+  +ExpiresAt time.Time
+}
+
+class TokenPair {
+  +AccessToken string
+  +RefreshToken string
+}
+
+class InvalidCredentialsError {
+  +Error() string
+}
+
+BcryptPasswordHasher ..|> PasswordHasher
+JWTTokenIssuer ..|> TokenIssuer
+
+AuthenticationHandler --> PasswordHasher
+AuthenticationHandler --> UserRepository
+AuthenticationHandler --> TokenIssuer
+AuthenticationHandler ..> TokenPair : возвращает
+AuthenticationHandler ..> InvalidCredentialsError : при неверных данных
+
+RegistrationHandler --> PasswordHasher
+RegistrationHandler --> UserRepository
+RegistrationHandler ..> User : создаёт
+
+UserRepository ..> User
+JWTTokenIssuer ..> Claims
+
+note right of BcryptPasswordHasher
+  Пароль никогда не хранится
+  и не логируется в открытом виде,
+  только хэш (bcrypt, cost >= 12)
+end note
+
+note right of JWTTokenIssuer
+  signingKey хранится в secret-manager,
+  не в коде и не в переменных окружения
+  репозитория
+end note
+
+@enduml

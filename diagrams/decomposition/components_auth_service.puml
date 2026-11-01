@@ -1,0 +1,35 @@
+@startuml
+title Умный Дом - Диаграмма компонентов C4: Auth Service
+
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_TOP_DOWN()
+LAYOUT_WITH_LEGEND()
+
+Container(gateway, "API Gateway", "Nginx / Kong", "Единая точка входа")
+ContainerDb(auth_db, "Auth DB", "PostgreSQL", "Учётные записи, пароли (хэши), сессии")
+
+Container_Boundary(auth_svc, "Auth Service") {
+    Component(api, "API Component", "REST controller", "Принимает запросы: регистрация, логин, обновление токена")
+    Component(reg_handler, "Registration Handler", "Application service", "Валидирует и создаёт нового пользователя")
+    Component(auth_handler, "Authentication Handler", "Application service", "Проверяет учётные данные при логине")
+    Component(password_hasher, "Password Hasher", "Domain service", "Хэширование и проверка паролей (bcrypt)")
+    Component(token_issuer, "Token Issuer", "Domain service", "Генерирует и подписывает JWT / refresh-токены")
+    Component(repository, "User Repository", "Data access", "CRUD поверх Auth DB")
+}
+
+Rel(gateway, api, "Регистрация / логин / обновление токена", "REST, sync")
+
+Rel(api, reg_handler, "Передаёт запрос регистрации", "вызов в процессе")
+Rel(api, auth_handler, "Передаёт запрос логина", "вызов в процессе")
+
+Rel(reg_handler, password_hasher, "Хэширует пароль", "вызов в процессе")
+Rel(reg_handler, repository, "Создаёт пользователя", "вызов в процессе")
+
+Rel(auth_handler, repository, "Получает пользователя по логину", "вызов в процессе")
+Rel(auth_handler, password_hasher, "Проверяет пароль", "вызов в процессе")
+Rel(auth_handler, token_issuer, "Запрашивает выпуск токена", "вызов в процессе")
+
+Rel(repository, auth_db, "SQL-запросы", "SQL")
+
+@enduml

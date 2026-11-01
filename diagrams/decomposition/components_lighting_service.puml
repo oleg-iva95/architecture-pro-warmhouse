@@ -1,0 +1,37 @@
+@startuml
+title Умный Дом - Диаграмма компонентов C4: Lighting Service
+
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_TOP_DOWN()
+LAYOUT_WITH_LEGEND()
+
+Container(gateway, "API Gateway", "Nginx / Kong", "Единая точка входа")
+Container(access_svc, "Access Control Service", "Go / REST", "Проверка прав доступа")
+ContainerQueue(broker, "Message Broker", "Kafka / RabbitMQ", "Команды устройствам")
+ContainerDb(lighting_db, "Lighting DB", "PostgreSQL", "Состояние зон освещения")
+
+Container_Boundary(lighting_svc, "Lighting Service") {
+    Component(api, "API Component", "REST controller", "Принимает команды включения/отключения освещения")
+    Component(cmd_handler, "Command Handler", "Application service", "Валидирует и обрабатывает команды освещения")
+    Component(state_manager, "Zone State Manager", "Domain service", "Хранит и обновляет состояние зон освещения")
+    Component(access_client, "Access Check Client", "REST client", "Проверяет права перед выполнением команды")
+    Component(event_publisher, "Event Publisher", "Broker producer", "Публикует команду устройству в брокер")
+    Component(repository, "Lighting Repository", "Data access", "CRUD поверх Lighting DB")
+}
+
+Rel(gateway, api, "Команды освещения", "REST, sync")
+
+Rel(api, cmd_handler, "Передаёт команду", "вызов в процессе")
+
+Rel(cmd_handler, access_client, "Проверяет права перед выполнением", "вызов в процессе")
+Rel(access_client, access_svc, "Проверяет права на действие с устройством", "REST, sync")
+
+Rel(cmd_handler, state_manager, "Обновляет состояние зоны", "вызов в процессе")
+Rel(cmd_handler, event_publisher, "Публикует команду на устройство", "вызов в процессе")
+Rel(event_publisher, broker, "Отправляет команду", "async, pub/sub")
+
+Rel(state_manager, repository, "Читает/пишет состояние", "вызов в процессе")
+Rel(repository, lighting_db, "SQL-запросы", "SQL")
+
+@enduml

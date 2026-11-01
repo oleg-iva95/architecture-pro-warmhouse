@@ -1,13 +1,185 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
     container_name: smarthome-postgres
-  ## тут нужно добавить настройки
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=smarthome
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./smart_home/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - smarthome-network
+
+  devices-postgres:
+    image: postgres:16-alpine
+    container_name: smarthome-devices-postgres
+    environment:
+      - POSTGRES_USER=devices
+      - POSTGRES_PASSWORD=devices
+      - POSTGRES_DB=devices
+    volumes:
+      - devices_postgres_data:/var/lib/postgresql/data
+      - ./device-service/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U devices"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - smarthome-network
+
+  telemetry-postgres:
+    image: postgres:16-alpine
+    container_name: smarthome-telemetry-postgres
+    environment:
+      - POSTGRES_USER=telemetry
+      - POSTGRES_PASSWORD=telemetry
+      - POSTGRES_DB=telemetry
+    volumes:
+      - telemetry_postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U telemetry"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - smarthome-network
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: smarthome-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - smarthome-network
 
   temperature-api:
-  ## тут нужно добавить приложение
+    build:
+      context: ./temperature-api
+      dockerfile: Dockerfile
+    container_name: smarthome-temperature-api
+    environment:
+      - BROKER_URL=amqp://guest:guest@rabbitmq:5672/%2F
+      - TELEMETRY_QUEUE=devices.telemetry.temperature
+    ports:
+      - "8081:8081"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - smarthome-network
+
+  device-service:
+    build:
+      context: ./device-service
+      dockerfile: Dockerfile
+    container_name: smarthome-device-service
+    environment:
+      - MONOLITH_URL=http://app:8080
+      - DEVICE_DB_HOST=devices-postgres
+      - DEVICE_DB_PORT=5432
+      - DEVICE_DB_NAME=devices
+      - DEVICE_DB_USER=devices
+      - DEVICE_DB_PASSWORD=devices
+    ports:
+      - "8082:8082"
+    depends_on:
+      devices-postgres:
+        condition: service_healthy
+      app:
+        condition: service_started
+    networks:
+      - smarthome-network
+
+  telemetry-migrate:
+    build:
+      context: ./telemetry-service
+      dockerfile: Dockerfile
+    container_name: smarthome-telemetry-migrate
+    command: ["python", "manage.py", "migrate", "--noinput"]
+    environment:
+      - TELEMETRY_DB_HOST=telemetry-postgres
+      - TELEMETRY_DB_PORT=5432
+      - TELEMETRY_DB_NAME=telemetry
+      - TELEMETRY_DB_USER=telemetry
+      - TELEMETRY_DB_PASSWORD=telemetry
+      - DJANGO_SECRET_KEY=dev-secret-key-change-me
+      - DJANGO_DEBUG=0
+    depends_on:
+      telemetry-postgres:
+        condition: service_healthy
+    networks:
+      - smarthome-network
+    restart: "no"
+
+  telemetry-service:
+    build:
+      context: ./telemetry-service
+      dockerfile: Dockerfile
+    container_name: smarthome-telemetry-service
+    environment:
+      - TELEMETRY_DB_HOST=telemetry-postgres
+      - TELEMETRY_DB_PORT=5432
+      - TELEMETRY_DB_NAME=telemetry
+      - TELEMETRY_DB_USER=telemetry
+      - TELEMETRY_DB_PASSWORD=telemetry
+      - DJANGO_SECRET_KEY=dev-secret-key-change-me
+      - DJANGO_DEBUG=0
+    ports:
+      - "8083:8083"
+    depends_on:
+      telemetry-postgres:
+        condition: service_healthy
+      telemetry-migrate:
+        condition: service_completed_successfully
+    networks:
+      - smarthome-network
+
+  telemetry-consumer:
+    build:
+      context: ./telemetry-service
+      dockerfile: Dockerfile
+    container_name: smarthome-telemetry-consumer
+    command: ["python", "manage.py", "consume_telemetry"]
+    environment:
+      - TELEMETRY_DB_HOST=telemetry-postgres
+      - TELEMETRY_DB_PORT=5432
+      - TELEMETRY_DB_NAME=telemetry
+      - TELEMETRY_DB_USER=telemetry
+      - TELEMETRY_DB_PASSWORD=telemetry
+      - DJANGO_SECRET_KEY=dev-secret-key-change-me
+      - DJANGO_DEBUG=0
+      - BROKER_URL=amqp://guest:guest@rabbitmq:5672/%2F
+      - TELEMETRY_QUEUE=devices.telemetry.temperature
+    depends_on:
+      telemetry-postgres:
+        condition: service_healthy
+      telemetry-migrate:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - smarthome-network
 
   app:
     build:
@@ -30,6 +202,8 @@ services:
 
 volumes:
   postgres_data:
+  devices_postgres_data:
+  telemetry_postgres_data:
 
 networks:
   smarthome-network:
