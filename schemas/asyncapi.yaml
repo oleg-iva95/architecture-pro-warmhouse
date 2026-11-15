@@ -1,0 +1,71 @@
+asyncapi: 3.0.0
+info:
+  title: Умный Дом - события телеметрии
+  version: 1.0.0
+  description: >
+    temperature-api публикует показания датчиков в RabbitMQ, а
+    telemetry-consumer читает их и сохраняет в БД telemetry-service.
+
+servers:
+  rabbitmq:
+    host: localhost:5672
+    protocol: amqp
+    description: RabbitMQ (локально, порт опубликован в docker-compose)
+  rabbitmqManagementUi:
+    host: localhost:15672
+    protocol: http
+    description: RabbitMQ Management UI (guest/guest) — посмотреть очередь devices.telemetry.temperature глазами
+
+channels:
+  temperatureReadings:
+    address: devices.telemetry.temperature
+    messages:
+      newReading:
+        payload:
+          type: object
+          required: [id, deviceId, metricType, value, recordedAt]
+          properties:
+            id:
+              type: string
+              format: uuid
+              description: "Соответствует TelemetryData.id"
+            deviceId:
+              type: string
+              format: uuid
+              description: "Соответствует TelemetryData.device_id (UUID, полученный из legacy sensor_id через uuid5)"
+            metricType:
+              type: string
+              description: "Соответствует TelemetryData.metric_type"
+            value:
+              type: number
+            unit:
+              type: string
+              example: C
+            recordedAt:
+              type: string
+              format: date-time
+        examples:
+          - payload:
+              id: "2e5b7c9d-1f3a-4b4c-8d8e-3a5c7e9a1b42"
+              deviceId: "7c4a3d10-2222-4b1a-9c3d-000000000002"
+              metricType: temperature
+              value: 21.8
+              unit: C
+              recordedAt: "2026-11-01T09:15:00Z"
+
+operations:
+  publishTemperatureReading:
+    action: send
+    summary: "temperature-api публикует показание при каждом запросе /temperature"
+    channel:
+      $ref: '#/channels/temperatureReadings'
+    messages:
+      - $ref: '#/channels/temperatureReadings/messages/newReading'
+
+  consumeTemperatureReading:
+    action: receive
+    summary: "telemetry-consumer читает очередь и сохраняет показание в БД"
+    channel:
+      $ref: '#/channels/temperatureReadings'
+    messages:
+      - $ref: '#/channels/temperatureReadings/messages/newReading'

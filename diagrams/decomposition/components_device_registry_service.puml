@@ -1,0 +1,34 @@
+@startuml
+title Умный Дом - Диаграмма компонентов C4: Device Registry Service
+
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_TOP_DOWN()
+LAYOUT_WITH_LEGEND()
+
+Container(gateway, "API Gateway", "Nginx / Kong", "Единая точка входа")
+Container(access_svc, "Access Control Service", "Go / REST", "Проверка прав доступа")
+ContainerDb(registry_db, "Registry DB", "PostgreSQL", "Каталог устройств дома")
+
+Container_Boundary(registry_svc, "Device Registry Service") {
+    Component(api, "API Component", "REST controller", "CRUD-запросы на устройства + запрос владельца устройства")
+    Component(cmd_handler, "Device Command Handler", "Application service", "Добавление / редактирование / удаление устройства")
+    Component(query_service, "Device Query Service", "Application service", "Поиск устройства, получение владельца устройства")
+    Component(access_client, "Access Check Client", "REST client", "Проверяет права перед изменением устройства")
+    Component(repository, "Device Repository", "Data access", "CRUD поверх Registry DB")
+}
+
+Rel(gateway, api, "CRUD устройств", "REST, sync")
+Rel(access_svc, api, "Запрашивает владельца устройства", "REST, sync")
+
+Rel(api, cmd_handler, "Передаёт команду изменения", "вызов в процессе")
+Rel(api, query_service, "Передаёт запрос на чтение", "вызов в процессе")
+
+Rel(cmd_handler, access_client, "Проверяет права перед изменением", "вызов в процессе")
+Rel(access_client, access_svc, "Проверяет права на действие с устройством", "REST, sync")
+
+Rel(cmd_handler, repository, "Создаёт/изменяет/удаляет запись", "вызов в процессе")
+Rel(query_service, repository, "Читает данные устройства", "вызов в процессе")
+Rel(repository, registry_db, "SQL-запросы", "SQL")
+
+@enduml

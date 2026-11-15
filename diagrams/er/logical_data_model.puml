@@ -1,0 +1,179 @@
+@startuml
+title Умный Дом - ER диаграмма данных
+
+hide circle
+skinparam linetype ortho
+skinparam roundcorner 8
+skinparam class {
+  BackgroundColor<<access>> #E8F0FE
+  BackgroundColor<<device>> #E6F4EA
+  BackgroundColor<<security>> #FCE8E6
+  BackgroundColor<<shared>> #FFF4E5
+}
+
+' ===================== Домен: Пользователи и доступ =====================
+
+entity "User" as user <<access>> {
+  * id : UUID
+  --
+  login : varchar(100)
+  password_hash : varchar(255)
+  email : varchar(255)
+  full_name : varchar(255)
+  created_at : timestamp
+}
+
+entity "House" as house <<access>> {
+  * id : UUID
+  --
+  owner_user_id : UUID <<FK>>
+  name : varchar(100)
+  address : varchar(255)
+  created_at : timestamp
+}
+
+entity "Role" as role <<access>> {
+  * id : UUID
+  --
+  name : varchar(50)
+  description : varchar(255)
+}
+
+entity "Permission" as permission <<access>> {
+  * id : UUID
+  --
+  role_id : UUID <<FK>>
+  action : varchar(50)
+  resource_type : varchar(50)
+}
+
+entity "UserHouseRole" as user_house_role <<access>> {
+  * id : UUID
+  --
+  user_id : UUID <<FK>>
+  house_id : UUID <<FK>>
+  role_id : UUID <<FK>>
+  granted_at : timestamp
+}
+
+' ===================== Домен: Управление устройствами =====================
+
+entity "DeviceType" as device_type <<device>> {
+  * id : UUID
+  --
+  name : varchar(50)
+  description : varchar(255)
+}
+
+entity "Device" as device <<device>> {
+  * id : UUID
+  --
+  type_id : UUID <<FK>>
+  house_id : UUID <<FK>>
+  serial_number : varchar(100)
+  name : varchar(100)
+  location : varchar(100)
+  status : varchar(20)
+  created_at : timestamp
+}
+
+entity "Module" as module <<device>> {
+  * id : UUID
+  --
+  device_id : UUID <<FK>>
+  name : varchar(100)
+  firmware_version : varchar(50)
+  installed_at : timestamp
+}
+
+entity "TelemetryData" as telemetry <<device>> {
+  * id : UUID
+  --
+  device_id : UUID <<FK>>
+  metric_type : varchar(50)
+  value : double
+  unit : varchar(20)
+  recorded_at : timestamp
+}
+
+entity "ClimateState" as climate_state <<device>> {
+  * device_id : UUID <<FK>>
+  --
+  target_temperature : double
+  current_temperature : double
+  mode : varchar(20)
+  updated_at : timestamp
+}
+
+entity "LightingState" as lighting_state <<device>> {
+  * device_id : UUID <<FK>>
+  --
+  is_on : boolean
+  brightness : int
+  updated_at : timestamp
+}
+
+entity "GateState" as gate_state <<device>> {
+  * device_id : UUID <<FK>>
+  --
+  status : varchar(20)
+  last_changed_at : timestamp
+}
+
+' ===================== Домен: Безопасность и наблюдение =====================
+
+entity "VideoRecording" as video_recording <<security>> {
+  * id : UUID
+  --
+  camera_device_id : UUID <<FK>>
+  storage_url : varchar(500)
+  started_at : timestamp
+  ended_at : timestamp
+  duration_seconds : int
+}
+
+entity "MotionEvent" as motion_event <<security>> {
+  * id : UUID
+  --
+  camera_device_id : UUID <<FK>>
+  recording_id : UUID <<FK, nullable>>
+  detected_at : timestamp
+}
+
+' ===================== Сквозная сущность: аудит безопасности =====================
+
+entity "AuditLog" as audit_log <<shared>> {
+  * id : UUID
+  --
+  user_id : UUID <<FK, nullable>>
+  device_id : UUID <<FK, nullable>>
+  action : varchar(50)
+  result : varchar(20)
+  occurred_at : timestamp
+}
+
+' ===================== Связи =====================
+
+user ||--o{ house : "владеет\n(1 user -> N houses)"
+user ||--o{ user_house_role : "имеет доступ"
+house ||--o{ user_house_role : "доступен для"
+role ||--o{ user_house_role : "назначена в"
+role ||--o{ permission : "включает"
+
+house ||--o{ device : "содержит"
+device_type ||--o{ device : "описывает"
+device ||--o{ module : "состоит из"
+device ||--o{ telemetry : "генерирует"
+
+device ||--o| climate_state : "состояние (если термостат)"
+device ||--o| lighting_state : "состояние (если освещение)"
+device ||--o| gate_state : "состояние (если привод ворот)"
+
+device ||--o{ video_recording : "записывает (если камера)"
+video_recording ||--o{ motion_event : "связана с"
+device ||--o{ motion_event : "фиксирует"
+
+user ||--o{ audit_log : "инициирует действие"
+device ||--o{ audit_log : "цель действия"
+
+@enduml

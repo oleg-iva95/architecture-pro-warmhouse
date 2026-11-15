@@ -1,8 +1,5 @@
--- Create the database if it doesn't exist
-CREATE DATABASE smarthome;
-
--- Connect to the database
-\c smarthome;
+-- POSTGRES_DB=smarthome уже создаёт базу и запускает этот скрипт внутри неё,
+-- поэтому CREATE DATABASE/\c здесь не нужны.
 
 -- Create the sensors table
 CREATE TABLE IF NOT EXISTS sensors (

@@ -1,0 +1,40 @@
+@startuml
+title Умный Дом - Диаграмма компонентов C4: Video Archive Service
+
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_TOP_DOWN()
+LAYOUT_WITH_LEGEND()
+
+Container(gateway, "API Gateway", "Nginx / Kong", "Единая точка входа")
+Container(access_svc, "Access Control Service", "Go / REST", "Проверка прав доступа")
+ContainerDb(archive_db, "Archive Metadata DB", "PostgreSQL", "Метаданные записей: камера, время, длительность")
+ContainerDb(video_storage, "Video Object Storage", "S3-совместимое хранилище", "Сами видеофайлы архива")
+
+Container_Boundary(video_archive_svc, "Video Archive Service") {
+    Component(api, "API Component", "REST controller", "Принимает запросы на поиск и получение архивных записей")
+    Component(ingest_handler, "Archive Ingest Handler", "Application service", "Принимает записанные сегменты видео и сохраняет их")
+    Component(query_service, "Archive Query Service", "Application service", "Поиск записей по камере/времени")
+    Component(access_client, "Access Check Client", "REST client", "Проверяет права перед выдачей записи")
+    Component(storage_client, "Storage Client", "Infrastructure client", "Загружает/выгружает видеофайлы в объектное хранилище")
+    Component(metadata_repository, "Metadata Repository", "Data access", "CRUD поверх Archive Metadata DB")
+}
+
+Rel(gateway, api, "Запрос архива", "REST, sync")
+
+Rel(api, access_client, "Проверяет права перед выдачей записи", "вызов в процессе")
+Rel(access_client, access_svc, "Проверяет права на действие с устройством", "REST, sync")
+
+Rel(api, query_service, "Передаёт запрос поиска", "вызов в процессе")
+Rel(api, ingest_handler, "Передаёт новый видеосегмент", "вызов в процессе")
+
+Rel(query_service, metadata_repository, "Ищет метаданные записей", "вызов в процессе")
+Rel(query_service, storage_client, "Получает ссылку/файл записи", "вызов в процессе")
+
+Rel(ingest_handler, storage_client, "Сохраняет видеофайл", "вызов в процессе")
+Rel(ingest_handler, metadata_repository, "Сохраняет метаданные записи", "вызов в процессе")
+
+Rel(storage_client, video_storage, "Читает/пишет видеофайлы", "S3 API")
+Rel(metadata_repository, archive_db, "SQL-запросы", "SQL")
+
+@enduml

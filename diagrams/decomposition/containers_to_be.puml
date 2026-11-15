@@ -1,0 +1,93 @@
+@startuml
+title Умный Дом - Диаграмма контейнеров C4 (To-Be, микросервисы)
+
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+LAYOUT_TOP_DOWN()
+LAYOUT_WITH_LEGEND()
+
+Person(user, "Пользователь", "Владелец/житель умного дома")
+
+
+Container(webapp, "Веб-приложение", "React SPA", "Клиентский интерфейс для управления домом")
+
+System_Boundary(warmhouse_boundary, "Платформа «Умный Дом»") {
+
+    Container(gateway, "API Gateway", "Nginx / Kong", "Единая точка входа: маршрутизация запросов, терминация TLS, rate limiting")
+
+    
+        Container(auth_svc, "Auth Service", "Go / REST", "Регистрация и аутентификация пользователей, выдача JWT")
+        ContainerDb(auth_db, "Auth DB", "PostgreSQL", "Учётные записи, пароли (хэши), сессии")
+
+        Container(access_svc, "Access Control Service", "Go / REST", "Проверка прав доступа пользователя к дому/устройству на каждый запрос")
+        ContainerDb(access_db, "Access DB", "PostgreSQL", "Роли, права, привязка пользователь-устройство")
+
+
+    
+        Container(registry_svc, "Device Registry Service", "Go / REST", "Добавление, редактирование, удаление устройств (реестр)")
+        ContainerDb(registry_db, "Registry DB", "PostgreSQL", "Каталог устройств дома")
+
+        Container(climate_svc, "Climate Service", "Go / REST", "Вкл/выкл отопления, мониторинг температуры из разных мест")
+        ContainerDb(climate_db, "Climate DB", "PostgreSQL", "Состояние термостатов, история показаний")
+
+        Container(lighting_svc, "Lighting Service", "Go / REST", "Включение и отключение освещения")
+        ContainerDb(lighting_db, "Lighting DB", "PostgreSQL", "Состояние зон освещения")
+
+        Container(gate_svc, "Gate Service", "Go / REST", "Открытие и закрытие ворот")
+        ContainerDb(gate_db, "Gate DB", "PostgreSQL", "Состояние и журнал событий привода ворот")
+    
+
+
+        Container(video_stream_svc, "Video Streaming Service", "Go / RTSP-WebRTC gateway", "Просмотр и трансляция видео с камер в реальном времени")
+        Container(video_archive_svc, "Video Archive Service", "Go / REST", "Хранение и выдача архивных записей")
+        ContainerDb(archive_db, "Archive Metadata DB", "PostgreSQL", "Метаданные записей: камера, время, длительность")
+        ContainerDb(video_storage, "Video Object Storage", "S3-совместимое хранилище", "Сами видеофайлы архива")
+
+
+    ContainerQueue(broker, "Message Broker", "Kafka / RabbitMQ", "Асинхронная доставка команд устройствам и телеметрии от датчиков/камер")
+}
+
+System_Ext(iot_devices, "IoT-устройства", "Термостаты, датчики, приводы ворот, камеры")
+
+' --- Клиент -> Веб-приложение -> Gateway ---
+Rel(user, webapp, "Открывает в браузере", "HTTPS")
+Rel(webapp, gateway, "Отправляет запросы", "HTTPS/JSON")
+
+' --- Gateway: аутентификация запроса ---
+Rel(gateway, auth_svc, "Валидирует JWT / логин", "REST, sync")
+
+' --- Gateway -> доменные сервисы ---
+Rel(gateway, registry_svc, "CRUD устройств", "REST, sync")
+Rel(gateway, climate_svc, "Команды и запрос показаний", "REST, sync")
+Rel(gateway, lighting_svc, "Команды освещения", "REST, sync")
+Rel(gateway, gate_svc, "Команды воротам", "REST, sync")
+Rel(gateway, video_stream_svc, "Запрос трансляции", "REST/WebRTC, sync")
+Rel(gateway, video_archive_svc, "Запрос архива", "REST, sync")
+
+' --- Каждый доменный сервис проверяет права перед выполнением действия (zero-trust, defense in depth) ---
+Rel(registry_svc, access_svc, "Проверяет права на действие с устройством", "REST, sync")
+Rel(climate_svc, access_svc, "Проверяет права на действие с устройством", "REST, sync")
+Rel(lighting_svc, access_svc, "Проверяет права на действие с устройством", "REST, sync")
+Rel(gate_svc, access_svc, "Проверяет права на действие с устройством", "REST, sync")
+Rel(video_stream_svc, access_svc, "Проверяет права на действие с устройством", "REST, sync")
+Rel(video_archive_svc, access_svc, "Проверяет права на действие с устройством", "REST, sync")
+Rel(access_svc, registry_svc, "Получает владельца устройства", "REST, sync")
+
+' --- Сервисы -> свои БД ---
+Rel(auth_svc, auth_db, "Читает/пишет", "SQL")
+Rel(access_svc, access_db, "Читает/пишет", "SQL")
+Rel(registry_svc, registry_db, "Читает/пишет", "SQL")
+Rel(climate_svc, climate_db, "Читает/пишет", "SQL")
+Rel(lighting_svc, lighting_db, "Читает/пишет", "SQL")
+Rel(gate_svc, gate_db, "Читает/пишет", "SQL")
+Rel(video_archive_svc, archive_db, "Читает/пишет метаданные", "SQL")
+Rel(video_archive_svc, video_storage, "Сохраняет/выдаёт файлы", "S3 API")
+
+' --- Асинхронное взаимодействие с устройствами через брокер ---
+Rel(climate_svc, broker, "Публикует команды / подписан на телеметрию", "async, pub/sub")
+Rel(lighting_svc, broker, "Публикует команды", "async, pub/sub")
+Rel(gate_svc, broker, "Публикует команды / подписан на события привода", "async, pub/sub")
+Rel(video_stream_svc, broker, "Подписан на события тревоги (движение)", "async, pub/sub")
+Rel(iot_devices, broker, "Публикует телеметрию / получает команды", "MQTT -> broker")
+
+@enduml

@@ -1,0 +1,38 @@
+@startuml
+title Умный Дом - Диаграмма компонентов C4: Video Streaming Service
+
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_TOP_DOWN()
+LAYOUT_WITH_LEGEND()
+
+Container(gateway, "API Gateway", "Nginx / Kong", "Единая точка входа")
+Container(access_svc, "Access Control Service", "Go / REST", "Проверка прав доступа")
+ContainerQueue(broker, "Message Broker", "Kafka / RabbitMQ", "События тревоги (движение)")
+System_Ext(cameras, "IP-камеры", "Источник видеопотока (RTSP)")
+
+Container_Boundary(video_stream_svc, "Video Streaming Service") {
+    Component(api, "API Component", "REST/WebRTC controller", "Принимает запросы на просмотр трансляции")
+    Component(session_manager, "Stream Session Manager", "Application service", "Создаёт и управляет активными сессиями просмотра")
+    Component(camera_connector, "Camera Connector", "Infrastructure service", "Подключается к камере по RTSP и ретранслирует поток")
+    Component(motion_detector, "Motion Detector", "Domain service", "Анализирует поток на предмет движения")
+    Component(access_client, "Access Check Client", "REST client", "Проверяет права перед выдачей трансляции")
+    Component(alert_publisher, "Alert Publisher", "Broker producer", "Публикует событие тревоги при обнаружении движения")
+    Component(session_store, "Session Store", "In-memory cache", "Хранит активные сессии просмотра (без постоянной БД)")
+}
+
+Rel(gateway, api, "Запрос трансляции", "REST/WebRTC, sync")
+
+Rel(api, access_client, "Проверяет права перед выдачей потока", "вызов в процессе")
+Rel(access_client, access_svc, "Проверяет права на действие с устройством", "REST, sync")
+
+Rel(api, session_manager, "Открывает сессию просмотра", "вызов в процессе")
+Rel(session_manager, session_store, "Сохраняет активную сессию", "вызов в процессе")
+Rel(session_manager, camera_connector, "Запрашивает поток с камеры", "вызов в процессе")
+Rel(camera_connector, cameras, "Получает видеопоток", "RTSP")
+
+Rel(camera_connector, motion_detector, "Передаёт кадры на анализ", "вызов в процессе")
+Rel(motion_detector, alert_publisher, "Публикует событие при обнаружении движения", "вызов в процессе")
+Rel(alert_publisher, broker, "Отправляет событие тревоги", "async, pub/sub")
+
+@enduml
